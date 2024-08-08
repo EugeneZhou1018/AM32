@@ -41,7 +41,7 @@ void changeCompInput()
         current_GPIO_PORT = PHASE_B_EXTI_PORT;
         current_EXTI_LINE = PHASE_B_EXTI_LINE;
     }
-    if (rising) {
+    if (!rising) {
         EXTI->RTSR |= (1 << current_EXTI_LINE);
         EXTI->FTSR &= ~(1 << current_EXTI_LINE);
     } else {
