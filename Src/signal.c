@@ -13,7 +13,6 @@
 #include "serial_telemetry.h"
 #include "sounds.h"
 #include "targets.h"
-
 int max_servo_deviation = 250;
 int servorawinput;
 uint16_t smallestnumber = 20000;
@@ -50,7 +49,7 @@ void computeMSInput()
 void computeServoInput()
 {
     if (((dma_buffer[1] - dma_buffer[0]) > 800) && ((dma_buffer[1] - dma_buffer[0]) < 2200)) {
-
+				signaltimeout = 0;
         if (calibration_required) {
             if (!high_calibration_set) {
                 if (high_calibration_counts == 0) {
@@ -63,7 +62,7 @@ void computeServoInput()
                     servo_high_threshold = ((7 * servo_high_threshold + (dma_buffer[1] - dma_buffer[0])) >> 3);
                     if (high_calibration_counts > 50) {
                         servo_high_threshold = servo_high_threshold - 25;
-                        eepromBuffer[33] = (servo_high_threshold - 1750) / 2;
+                        eepromBuffer.servo.high_threshold = (servo_high_threshold - 1750) / 2;
                         high_calibration_set = 1;
                         playDefaultTone();
                     }
@@ -77,7 +76,7 @@ void computeServoInput()
                 }
                 if (low_calibration_counts > 75) {
                     servo_low_threshold = servo_low_threshold + 25;
-                    eepromBuffer[32] = (servo_low_threshold - 750) / 2;
+                    eepromBuffer.servo.low_threshold = (servo_low_threshold - 750) / 2;
                     calibration_required = 0;
                     saveEEpromSettings();
                     low_calibration_counts = 0;
@@ -86,7 +85,7 @@ void computeServoInput()
             }
             signaltimeout = 0;
         } else {
-            if (bi_direction) {
+            if (eepromBuffer.bi_direction) {
                 if (dma_buffer[1] - dma_buffer[0] <= servo_neutral) {
                     servorawinput = map((dma_buffer[1] - dma_buffer[0]),
                         servo_low_threshold, servo_neutral, 0, 1000);
@@ -118,7 +117,6 @@ void computeServoInput()
 
 void transfercomplete()
 {
-    signaltimeout = 0;
     if (armed && dshot_telemetry) {
         if (out_put) {
             receiveDshotDma();
@@ -172,9 +170,6 @@ void transfercomplete()
                     dshot_frametime_low = (average_packet_length >> 3) - (average_packet_length >> 7);
                 }
             }
-            if (adjusted_input < 0) {
-                adjusted_input = 0;
-            }
             if (adjusted_input == 0 && calibration_required == 0) { // note this in input..not newinput so it
                                                                     // will be adjusted be main loop
                 zero_input_count++;
@@ -201,7 +196,7 @@ void transfercomplete()
 
 void checkDshot()
 {
-    if ((smallestnumber > 1) && (smallestnumber <= 4) && (average_signal_pulse < 60)) {
+    if ((smallestnumber >= 1) && (smallestnumber < 4) && (average_signal_pulse < 60)) {
         ic_timer_prescaler = 0;
         if (CPU_FREQUENCY_MHZ > 100) {
             output_timer_prescaler = 1;
@@ -214,7 +209,7 @@ void checkDshot()
         buffersize = 32;
         inputSet = 1;
     }
-    if ((smallestnumber > 4) && (smallestnumber <= 8) && (average_signal_pulse < 100)) {
+    if ((smallestnumber >= 4) && (smallestnumber <= 8) && (average_signal_pulse < 100)) {
         dshot = 1;
         ic_timer_prescaler = 1;
         if (CPU_FREQUENCY_MHZ > 100) {

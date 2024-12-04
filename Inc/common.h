@@ -1,6 +1,10 @@
+#include <stdint.h>
+#include "eeprom.h"
+
 #pragma once
 
-extern uint8_t eepromBuffer[176];
+extern EEprom_t eepromBuffer;
+extern uint32_t eeprom_address;
 extern uint16_t TIMER1_MAX_ARR;
 extern uint16_t dshot_frametime_high;
 extern uint16_t dshot_frametime_low;
@@ -22,6 +26,11 @@ extern char ic_timer_prescaler;
 extern uint8_t buffersize;
 extern char output_timer_prescaler;
 extern uint8_t compute_dshot_flag;
+extern uint16_t battery_voltage;
+extern int16_t actual_current;
+extern uint16_t e_rpm;
+
+
 #ifdef STMICRO
 extern GPIO_TypeDef* current_GPIO_PORT;
 #ifndef MCU_F031
@@ -69,3 +78,15 @@ typedef struct fastPID {
     int32_t integral_limit;
     int32_t output_limit;
 } fastPID;
+
+/*
+  input signal types
+ */
+enum inputType {
+    AUTO_IN = 0,
+    DSHOT_IN = 1,
+    SERVO_IN = 2,
+    SERIAL_IN = 3,
+    EDTARM_IN = 4,
+    DRONECAN_IN = 5,
+};

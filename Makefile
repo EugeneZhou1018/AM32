@@ -1,13 +1,9 @@
 
 QUIET = @
 
-# update version numbers here
-VERSION_MAJOR := 2
-VERSION_MINOR := 12
-
 # tools
 CC = $(ARM_SDK_PREFIX)gcc
-CP = $(ARM_SDK_PREFIX)objcopy
+OBJCOPY = $(ARM_SDK_PREFIX)objcopy
 ECHO = echo
 
 # common variables
@@ -20,123 +16,114 @@ MAIN_INC_DIR := Inc
 
 SRC_DIRS_COMMON := $(MAIN_SRC_DIR)
 
-# Include processor specific makefiles
-include f051makefile.mk
-include g071makefile.mk
-include f031makefile.mk
-include f421makefile.mk
-include e230makefile.mk
-include f415makefile.mk
+# Working directories
+ROOT := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 
-# Default MCU type to F051
-MCU_TYPE ?= F051
+# include the rules for OS independence
+include $(ROOT)/make/tools.mk
+
+# supported MCU types
+MCU_TYPES := E230 F031 F051 F415 F421 G071 L431 G431
+MCU_TYPE := NONE
+
+# Function to include makefile for each MCU type
+define INCLUDE_MCU_MAKEFILES
+$(foreach MCU_TYPE,$(MCU_TYPES),$(eval include $(call lc,$(MCU_TYPE))makefile.mk))
+endef
+$(call INCLUDE_MCU_MAKEFILES)
 
 # additional libs
 LIBS := -lnosys
 
+# extract version from Inc/version.h
+VERSION_MAJOR := $(shell $(FGREP) "define VERSION_MAJOR" $(MAIN_INC_DIR)/version.h | $(CUT) -d" " -f3 )
+VERSION_MINOR := $(shell $(FGREP) "define VERSION_MINOR" $(MAIN_INC_DIR)/version.h | $(CUT) -d" " -f3 )
+
+FIRMWARE_VERSION := $(VERSION_MAJOR).$(VERSION_MINOR)
+
 # Compiler options
-CFLAGS_COMMON := -DUSE_MAKE -fsingle-precision-constant -fomit-frame-pointer -ffast-math
-CFLAGS_COMMON += -I$(MAIN_INC_DIR) -g -O3 -Wall -ffunction-sections
-CFLAGS_COMMON += -D$(TARGET)
-CFLAGS_COMMON += -DVERSION_MAJOR=$(VERSION_MAJOR) -DVERSION_MINOR=$(VERSION_MINOR)
+
+CFLAGS_BASE := -fsingle-precision-constant -fomit-frame-pointer -ffast-math
+CFLAGS_BASE += -I$(MAIN_INC_DIR) -g3 -O2 -ffunction-sections --specs=nosys.specs
+CFLAGS_BASE += -Wall -Wundef -Wextra -Werror -Wno-unused-parameter -Wno-stringop-truncation
+
+CFLAGS_COMMON := $(CFLAGS_BASE)
 
 # Linker options
 LDFLAGS_COMMON := -specs=nano.specs $(LIBS) -Wl,--gc-sections -Wl,--print-memory-usage
 
-# Working directories
-ROOT := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
-
 # Search source files
 SRC_COMMON := $(foreach dir,$(SRC_DIRS_COMMON),$(wildcard $(dir)/*.[cs]))
-
-FIRMWARE_VERSION := $(VERSION_MAJOR).$(VERSION_MINOR)
-
-TARGET_FNAME = $(IDENTIFIER)_$(TARGET)_$(FIRMWARE_VERSION)
-TARGET_BASENAME = $(BIN_DIR)/$(TARGET_FNAME)
-
-# Build tools, so we all share the same versions
-# import macros common to all supported build systems
-# include $(ROOT)/make/system-id.mk
 
 # configure some directories that are relative to wherever ROOT_DIR is located
 OBJ := obj
 BIN_DIR := $(ROOT)/$(OBJ)
 
-TOOLS_DIR ?= $(ROOT)/tools
-DL_DIR := $(ROOT)/downloads
+# Function to check for _CAN suffix
+has_can_suffix = $(findstring _CAN,$1)
 
-.PHONY : clean all binary f051 g071 f031 e230 f421 f415
-all : $(TARGETS_F051) $(TARGETS_G071) $(TARGETS_F031) $(TARGETS_E230) $(TARGETS_F421) $(TARGETS_F415)
-f051 : $(TARGETS_F051)
-g071 : $(TARGETS_G071)
-f031 : $(TARGETS_F031)
-e230 : $(TARGETS_E230)
-f421 : $(TARGETS_F421)
-f415 : $(TARGETS_F415)
+# find the SVD files
+$(foreach MCU,$(MCU_TYPES),$(eval SVD_$(MCU) := $(wildcard $(HAL_FOLDER_$(MCU))/*.svd)))
+
+.PHONY : clean all binary $(foreach MCU,$(MCU_TYPES),$(call lc,$(MCU)))
+ALL_TARGETS := $(foreach MCU,$(MCU_TYPES),$(TARGETS_$(MCU)))
+all : $(ALL_TARGETS)
+
+# create targets for compiling one mcu type, eg "make f421"
+define CREATE_TARGET
+$(call lc,$(1)) : $$(TARGETS_$(1))
+endef
+$(foreach MCU,$(MCU_TYPES),$(eval $(call CREATE_TARGET,$(MCU))))
 
 clean :
 	@echo Removing $(OBJ) directory
 	@$(RM) -rf $(OBJ)
 
-# lowercase version of MCU_TYPE
-MCU_LOWER = $(call lc,$(MCU_TYPE))
+#####################
+# main firmware build
+define CREATE_BUILD_TARGET
+$(2)_BASENAME = $(BIN_DIR)/$(IDENTIFIER)_$(2)_$(FIRMWARE_VERSION)
 
-binary : $(TARGET_BASENAME).bin
+$(2) : $$($(2)_BASENAME).bin
+
+# Generate bin and hex files from elf
+$$($(2)_BASENAME).bin: $$($(2)_BASENAME).elf
+	echo building BIN $$@
+	@$(ECHO) Generating $$(notdir $$@)
+	$(QUIET)$(OBJCOPY) -O binary $$(<) $$@
+	$(QUIET)python3 Src/DroneCAN/set_app_signature.py $$@ $$(<)
+	$(QUIET)$(OBJCOPY) $$(<) -O ihex $$(@:.bin=.hex)
+	$(QUIET)$(CP) -f $$(<) $(OBJ)$(DSEP)debug.elf > $(NUL)
+
+# check for CAN support
+$(eval xLDSCRIPT := $$(if $$(call has_can_suffix,$$(2)),$(LDSCRIPT_CAN_$(1)),$(LDSCRIPT_$(1))))
+$(eval xCFLAGS := $$(if $$(call has_can_suffix,$$(2)),$(CFLAGS_CAN_$(1))))
+$(eval xSRC := $$(if $$(call has_can_suffix,$$(2)),$(SRC_CAN_$(1))))
+
+CFLAGS_$(2) = -DAM32_MCU=\"$(MCU)\" $(MCU_$(1)) -D$(2) $(CFLAGS_$(1)) $(CFLAGS_COMMON) $(xCFLAGS)
+LDFLAGS_$(2) = $(LDFLAGS_COMMON) $(LDFLAGS_$(1)) -T$(xLDSCRIPT)
+
+-include $$($(2)_BASENAME).d
+
+$$($(2)_BASENAME).elf: $(SRC_COMMON) $$(SRC_$(1)) $(xSRC)
+	@$(ECHO) Compiling $$(notdir $$@)
+	$(QUIET)$(MKDIR) -p $(OBJ)
+	$(QUIET)$(CC) $$(CFLAGS_$(2)) $$(LDFLAGS_$(2)) -MMD -MP -MF $$(@:.elf=.d) -o $$(@) $(SRC_COMMON) $$(SRC_$(1)) $(xSRC)
 # we copy debug.elf to give us a constant debug target for vscode
 # this means the debug button will always debug the last target built
-	@$(COPY) $(OBJ)$(DSEP)$(TARGET_FNAME).elf $(OBJ)$(DSEP)debug.elf > $(NUL)
+	$(QUIET)$(CP) -f $$(SVD_$(1)) $(OBJ)/debug.svd
 # also copy the openocd.cfg from the MCU directory to obj/openocd.cfg for auto config of Cortex-Debug
 # in vscode
-	@$(COPY) Mcu$(DSEP)$(MCU_LOWER)$(DSEP)openocd.cfg $(OBJ)$(DSEP)openocd.cfg > $(NUL)
-	@$(ECHO) done $(TARGET)
+	$(QUIET)$(CP) -f Mcu$(DSEP)$(call lc,$(1))$(DSEP)openocd.cfg $(OBJ)$(DSEP)openocd.cfg > $(NUL)
+endef
+$(foreach MCU,$(MCU_TYPES),$(foreach TARGET,$(TARGETS_$(MCU)), $(eval $(call CREATE_BUILD_TARGET,$(MCU),$(TARGET)))))
 
-$(TARGETS_F051) :
-	@$(MAKE) -s MCU_TYPE=F051 TARGET=$@ binary
+# include the targets for installing tools
+include $(ROOT)/make/tools_install.mk
 
-$(TARGETS_G071) :
-	@$(MAKE) -s MCU_TYPE=G071 TARGET=$@ binary
-
-$(TARGETS_F031) :
-	@$(MAKE) -s MCU_TYPE=F031 TARGET=$@ binary
-
-$(TARGETS_E230) :
-	@$(MAKE) -s MCU_TYPE=E230 TARGET=$@ binary
-
-$(TARGETS_F421) :
-	@$(MAKE) -s MCU_TYPE=F421 TARGET=$@ binary	
-
-$(TARGETS_F415) :
-	@$(MAKE) -s MCU_TYPE=F415 TARGET=$@ binary		
-
-# Compile target
-$(TARGET_BASENAME).elf: CFLAGS := $(MCU_$(MCU_TYPE)) $(CFLAGS_$(MCU_TYPE)) $(CFLAGS_COMMON)
-$(TARGET_BASENAME).elf: LDFLAGS := $(LDFLAGS_COMMON) $(LDFLAGS_$(MCU_TYPE)) -T$(LDSCRIPT_$(MCU_TYPE))
-$(TARGET_BASENAME).elf: $(SRC_COMMON) $(SRC_$(MCU_TYPE))
-	@$(ECHO) Compiling $(notdir $@)
-	$(QUIRT)$(MKDIR) $(OBJ)
-	$(QUIET)$(CC) $(CFLAGS) $(LDFLAGS) -MMD -MP -MF $(@:.elf=.d) -o $(@) $(SRC_COMMON) $(SRC_$(MCU_TYPE))
-
-# Generate bin and hex files
-$(TARGET_BASENAME).bin: $(TARGET_BASENAME).elf
-	@$(ECHO) Generating $(notdir $@)
-	$(QUIET)$(CP) -O binary $(<) $@
-	$(QUIET)$(CP) $(<) -O ihex $(@:.bin=.hex)
-
-# mkdirs
-$(DL_DIR):
-	$(QUIET)$(MKDIR) $@
-
-$(TOOLS_DIR):
-	$(QUIET)$(MKDIR) $@
-
-# include the tools makefile
-include $(ROOT)/make/tools.mk
-
+# useful target to list all of the board targets so you can see what
+# make target to use for your board
 targets:
-	$(QUIET)echo "Targets for each MCU. To build a target use 'make TARGETNAME'"
-	$(QUIET)echo "F051 Targets: " $(TARGETS_F051)
-	$(QUIET)echo "G071 Targets: " $(TARGETS_G071)
-	$(QUIET)echo "F031 Targets: " $(TARGETS_F031)
-	$(QUIET)echo "E230 Targets: " $(TARGETS_E230)
-	$(QUIET)echo "F421 Targets: " $(TARGETS_F421)
-	$(QUIET)echo "F415 Targets: " $(TARGETS_F415)
+	$(QUIET)echo List of targets. To build a target use 'make TARGETNAME'
+	$(QUIET)echo $(ALL_TARGETS)
+

@@ -78,12 +78,13 @@ extern void tenKhzRoutine();
 extern void processDshot();
 
 extern char send_telemetry;
-int interrupt_time = 0;
+uint16_t interrupt_time = 0;
 extern char servoPwm;
 extern char dshot_telemetry;
 extern char armed;
 extern char out_put;
 extern uint8_t compute_dshot_flag;
+extern uint32_t commutation_interval;
 
 /* USER CODE END EV */
 
@@ -235,24 +236,31 @@ void ADC1_COMP_IRQHandler(void)
 {
     if (LL_EXTI_IsActiveFallingFlag_0_31(LL_EXTI_LINE_18)) {
         LL_EXTI_ClearFallingFlag_0_31(LL_EXTI_LINE_18);
-        interruptRoutine();
-
+				if((INTERVAL_TIMER->CNT) > (commutation_interval >> 1)){
+       interruptRoutine();
+    }
         return;
     }
 
     if (LL_EXTI_IsActiveRisingFlag_0_31(LL_EXTI_LINE_18)) {
         LL_EXTI_ClearRisingFlag_0_31(LL_EXTI_LINE_18);
-        interruptRoutine();
+				if((INTERVAL_TIMER->CNT) > (commutation_interval >> 1)){
+       interruptRoutine();
+    }
         return;
     }
     if (LL_EXTI_IsActiveFallingFlag_0_31(LL_EXTI_LINE_17)) {
         LL_EXTI_ClearFallingFlag_0_31(LL_EXTI_LINE_17);
-        interruptRoutine();
+				if((INTERVAL_TIMER->CNT) > (commutation_interval >> 1)){
+       interruptRoutine();
+    }
         return;
     }
     if (LL_EXTI_IsActiveRisingFlag_0_31(LL_EXTI_LINE_17)) {
         LL_EXTI_ClearRisingFlag_0_31(LL_EXTI_LINE_17);
-        interruptRoutine();
+				if((INTERVAL_TIMER->CNT) > (commutation_interval >> 1)){
+       interruptRoutine();
+    }
         return;
     }
 }
@@ -316,7 +324,7 @@ void TIM14_IRQHandler(void)
     interrupt_time = UTILITY_TIMER->CNT;
     PeriodElapsedCallback();
     LL_TIM_ClearFlag_UPDATE(TIM14);
-    interrupt_time = UTILITY_TIMER->CNT - interrupt_time;
+    interrupt_time = ((uint16_t)UTILITY_TIMER->CNT) - interrupt_time;
 }
 
 /* USER CODE BEGIN 1 */

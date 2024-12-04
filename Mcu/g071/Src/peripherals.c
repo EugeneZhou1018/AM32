@@ -134,7 +134,7 @@ void MX_COMP1_Init(void)
     COMP_InitStruct.OutputPolarity = LL_COMP_OUTPUTPOL_NONINVERTED;
     COMP_InitStruct.OutputBlankingSource = LL_COMP_BLANKINGSRC_TIM1_OC5;
     LL_COMP_Init(COMP1, &COMP_InitStruct);
-    LL_COMP_SetPowerMode(COMP1, LL_COMP_POWERMODE_HIGHSPEED);
+    LL_COMP_SetPowerMode(COMP1, LL_COMP_POWERMODE_MEDIUMSPEED);
     LL_COMP_SetCommonWindowMode(__LL_COMP_COMMON_INSTANCE(COMP1),
         LL_COMP_WINDOWMODE_DISABLE);
     LL_COMP_SetCommonWindowOutput(__LL_COMP_COMMON_INSTANCE(COMP1),
@@ -202,7 +202,7 @@ void MX_COMP2_Init(void)
     COMP_InitStruct.OutputPolarity = LL_COMP_OUTPUTPOL_NONINVERTED;
     COMP_InitStruct.OutputBlankingSource = LL_COMP_BLANKINGSRC_TIM1_OC5;
     LL_COMP_Init(COMP2, &COMP_InitStruct);
-    LL_COMP_SetPowerMode(COMP2, LL_COMP_POWERMODE_HIGHSPEED);
+    LL_COMP_SetPowerMode(COMP2, LL_COMP_POWERMODE_MEDIUMSPEED);
     LL_COMP_SetCommonWindowMode(__LL_COMP_COMMON_INSTANCE(COMP2),
         LL_COMP_WINDOWMODE_DISABLE);
     LL_COMP_SetCommonWindowOutput(__LL_COMP_COMMON_INSTANCE(COMP2),
@@ -278,7 +278,7 @@ void MX_TIM1_Init(void)
     /* USER CODE END TIM1_Init 1 */
     TIM_InitStruct.Prescaler = 0;
     TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
-    TIM_InitStruct.Autoreload = 3000;
+    TIM_InitStruct.Autoreload = TIM1_AUTORELOAD;
     TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
     TIM_InitStruct.RepetitionCounter = 0;
     LL_TIM_Init(TIM1, &TIM_InitStruct);
@@ -474,16 +474,17 @@ void MX_TIM3_Init(void)
     LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM3);
 
     LL_IOP_GRP1_EnableClock(LL_IOP_GRP1_PERIPH_GPIOB);
+		LL_IOP_GRP1_EnableClock(LL_IOP_GRP1_PERIPH_GPIOA);
     /**TIM3 GPIO Configuration
     PB4   ------> TIM3_CH1
     */
-    GPIO_InitStruct.Pin = LL_GPIO_PIN_4;
+    GPIO_InitStruct.Pin = INPUT_PIN;
     GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
     GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
     GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
     GPIO_InitStruct.Alternate = LL_GPIO_AF_1;
-    LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    LL_GPIO_Init(INPUT_PIN_PORT, &GPIO_InitStruct);
 
     /* TIM3 DMA Init */
 
@@ -703,36 +704,6 @@ void MX_GPIO_Init(void)
 
 void reloadWatchDogCounter() { LL_IWDG_ReloadCounter(IWDG); }
 
-void disableComTimerInt() { COM_TIMER->DIER &= ~((0x1UL << (0U))); }
-
-void enableComTimerInt() { COM_TIMER->DIER |= (0x1UL << (0U)); }
-
-void setAndEnableComInt(uint16_t time)
-{
-    COM_TIMER->CNT = 0;
-    COM_TIMER->ARR = time;
-    COM_TIMER->SR = 0x00;
-    COM_TIMER->DIER |= (0x1UL << (0U));
-}
-
-uint16_t getintervaTimerCount() { return INTERVAL_TIMER->CNT; }
-
-void setintervaTimerCount(uint16_t intertime)
-{
-    INTERVAL_TIMER->CNT = intertime;
-}
-
-void setPrescalerPWM(uint16_t presc) { TIM1->PSC = presc; }
-
-void setAutoReloadPWM(uint16_t relval) { TIM1->ARR = relval; }
-
-void setDutyCycleAll(uint16_t newdc)
-{
-    TIM1->CCR1 = newdc;
-    TIM1->CCR2 = newdc;
-    TIM1->CCR3 = newdc;
-}
-
 void setPWMCompare1(uint16_t compareone) { TIM1->CCR1 = compareone; }
 void setPWMCompare2(uint16_t comparetwo) { TIM1->CCR2 = comparetwo; }
 void setPWMCompare3(uint16_t comparethree) { TIM1->CCR3 = comparethree; }
@@ -821,4 +792,7 @@ void enableCorePeripherals()
     NVIC_SetPriority(EXTI4_15_IRQn, 2);
     NVIC_EnableIRQ(EXTI4_15_IRQn);
     EXTI->IMR1 |= (1 << 15);
+		#ifdef USE_PULSE_OUT
+		 LL_GPIO_SetPinMode(RPM_PULSE_PORT, RPM_PULSE_PIN, LL_GPIO_MODE_OUTPUT);
+		#endif
 }

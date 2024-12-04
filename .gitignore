@@ -13,3 +13,7 @@ Keil_Projects/Listings
 *.hex
 *.log
 *~
+*.map
+*.o
+.DS_Store
+.vscode/settings.json

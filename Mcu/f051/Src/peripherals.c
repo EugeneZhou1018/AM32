@@ -152,7 +152,7 @@ void MX_TIM1_Init(void)
 
     TIM_InitStruct.Prescaler = 0;
     TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
-    TIM_InitStruct.Autoreload = 1999;
+    TIM_InitStruct.Autoreload = TIM1_AUTORELOAD;
     TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
     TIM_InitStruct.RepetitionCounter = 0;
     LL_TIM_Init(TIM1, &TIM_InitStruct);
@@ -495,45 +495,43 @@ void initLed()
 }
 #endif
 
+#ifdef USE_DRV8328_NSLEEP // Disable gate driver when disarmed
+void initnSleep()
+{
+    LL_GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+    GPIO_InitStruct.Pin = NSLEEP_PIN;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(NSLEEP_PORT, &GPIO_InitStruct);
+    NSLEEP_PORT->BSRR = NSLEEP_PIN;
+}
+#endif
+
+#ifdef USE_DRV8328_NFAULT
+void initnFault()
+{
+    LL_GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+    GPIO_InitStruct.Pin = NFAULT_PIN;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+    LL_GPIO_Init(NFAULT_PORT, &GPIO_InitStruct);
+}
+#endif
+
 void reloadWatchDogCounter()
 {
     LL_IWDG_ReloadCounter(IWDG);
 }
 
-void disableComTimerInt() { COM_TIMER->DIER &= ~((0x1UL << (0U))); }
+inline void setPWMCompare1(uint16_t compareone) { TIM1->CCR1 = compareone; }
+inline void setPWMCompare2(uint16_t comparetwo) { TIM1->CCR2 = comparetwo; }
+inline void setPWMCompare3(uint16_t comparethree) { TIM1->CCR3 = comparethree; }
 
-void enableComTimerInt() { COM_TIMER->DIER |= (0x1UL << (0U)); }
+inline void generatePwmTimerEvent() { LL_TIM_GenerateEvent_UPDATE(TIM1); }
 
-void setAndEnableComInt(uint16_t time)
-{
-    COM_TIMER->CNT = 0;
-    COM_TIMER->ARR = time;
-    COM_TIMER->SR = 0x00;
-    COM_TIMER->DIER |= (0x1UL << (0U));
-}
-
-uint16_t getintervaTimerCount() { return INTERVAL_TIMER->CNT; }
-
-void setintervaTimerCount(uint16_t intertime) { INTERVAL_TIMER->CNT = 0; }
-
-void setPrescalerPWM(uint16_t presc) { TIM1->PSC = presc; }
-
-void setAutoReloadPWM(uint16_t relval) { TIM1->ARR = relval; }
-
-void setDutyCycleAll(uint16_t newdc)
-{
-    TIM1->CCR1 = newdc;
-    TIM1->CCR2 = newdc;
-    TIM1->CCR3 = newdc;
-}
-
-void inline setPWMCompare1(uint16_t compareone) { TIM1->CCR1 = compareone; }
-void inline setPWMCompare2(uint16_t comparetwo) { TIM1->CCR2 = comparetwo; }
-void inline setPWMCompare3(uint16_t comparethree) { TIM1->CCR3 = comparethree; }
-
-void inline generatePwmTimerEvent() { LL_TIM_GenerateEvent_UPDATE(TIM1); }
-
-void inline resetInputCaptureTimer()
+inline void resetInputCaptureTimer()
 {
     IC_TIMER_REGISTER->PSC = 0;
     IC_TIMER_REGISTER->CNT = 0;
@@ -583,6 +581,18 @@ void enableCorePeripherals()
 
 #ifdef USE_CUSTOM_LED
     initLed();
+#endif
+
+#ifdef USE_DRV8328_NSLEEP
+    initnSleep();
+#endif
+
+#ifdef USE_DRV8328_NFAULT
+    initnFault();
+#endif
+
+#ifdef USE_DRVOFF
+    initDrvoff();
 #endif
 
 #ifndef BRUSHED_MODE

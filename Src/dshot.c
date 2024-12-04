@@ -11,6 +11,9 @@
 #include "functions.h"
 #include "sounds.h"
 #include "targets.h"
+#if DRONECAN_SUPPORT
+#include "DroneCAN/DroneCAN.h"
+#endif
 
 int dpulse[16] = { 0 };
 
@@ -42,12 +45,15 @@ uint16_t halfpulsetime = 0;
 
 void computeDshotDMA()
 {
-    int j = 0;
     dshot_frametime = dma_buffer[31] - dma_buffer[0];
     halfpulsetime = dshot_frametime >> 5;
     if ((dshot_frametime > dshot_frametime_low) && (dshot_frametime < dshot_frametime_high)) {
+			signaltimeout = 0;
         for (int i = 0; i < 16; i++) {
-            dpulse[i] = ((dma_buffer[j + (i << 1) + 1] - dma_buffer[j + (i << 1)]) > (halfpulsetime));
+            // note that dma_buffer[] is uint32_t, we cast the difference to uint16_t to handle
+            // timer wrap correctly
+            const uint16_t pdiff = dma_buffer[(i << 1) + 1] - dma_buffer[(i << 1)];
+            dpulse[i] = (pdiff > halfpulsetime);
         }
         uint8_t calcCRC = ((dpulse[0] ^ dpulse[4] ^ dpulse[8]) << 3 | (dpulse[1] ^ dpulse[5] ^ dpulse[9]) << 2 | (dpulse[2] ^ dpulse[6] ^ dpulse[10]) << 1 | (dpulse[3] ^ dpulse[7] ^ dpulse[11]));
         uint8_t checkCRC = (dpulse[12] << 3 | dpulse[13] << 2 | dpulse[14] << 1 | dpulse[15]);
@@ -92,6 +98,12 @@ void computeDshotDMA()
                 if (EDT_ARM_ENABLE == 1) {
                     EDT_ARMED = 0;
                 }
+#if DRONECAN_SUPPORT
+                if (DroneCAN_active()) {
+                    // allow DroneCAN to override DShot input
+                    return;
+                }
+#endif
                 newinput = 0;
                 dshotcommand = 0;
                 command_count = 0;
@@ -126,24 +138,24 @@ void computeDshotDMA()
                         play_tone_flag = 5;
                         break;
                     case 7:
-                        dir_reversed = 0;
-                        forward = 1 - dir_reversed;
+                        eepromBuffer.dir_reversed = 0;
+                        forward = 1 - eepromBuffer.dir_reversed;
                         //	play_tone_flag = 1;
                         break;
                     case 8:
-                        dir_reversed = 1;
-                        forward = 1 - dir_reversed;
+                        eepromBuffer.dir_reversed = 1;
+                        forward = 1 - eepromBuffer.dir_reversed;
                         //	play_tone_flag = 2;
                         break;
                     case 9:
-                        bi_direction = 0;
+                        eepromBuffer.bi_direction = 0;
                         break;
                     case 10:
-                        bi_direction = 1;
+                        eepromBuffer.bi_direction = 1;
                         break;
                     case 12:
                         saveEEpromSettings();
-                        play_tone_flag = 1 + dir_reversed;
+                        play_tone_flag = 1 + eepromBuffer.dir_reversed;
                         //	NVIC_SystemReset();
                         break;
                     case 13:
@@ -159,10 +171,10 @@ void computeDshotDMA()
                         //	make_dshot_package();
                         break;
                     case 20:
-                        forward = 1 - dir_reversed;
+                        forward = 1 - eepromBuffer.dir_reversed;
                         break;
                     case 21:
-                        forward = dir_reversed;
+                        forward = eepromBuffer.dir_reversed;
                         break;
                     }
                     last_dshot_command = dshotcommand;
@@ -181,7 +193,7 @@ void make_dshot_package(uint16_t com_time)
         dshot_full_number = send_extended_dshot;
         send_extended_dshot = 0;
     } else {
-        if (!running || (com_time > 65535)) {
+        if (!running) {
             com_time = 65535;
         }
         //	calculate shift amount for data in format eee mmm mmm mmm, first 1 found

@@ -13,12 +13,13 @@ extern void tenKhzRoutine();
 extern void processDshot();
 
 extern char send_telemetry;
-int interrupt_time = 0;
+uint16_t interrupt_time = 0;
 extern char servoPwm;
 extern char dshot_telemetry;
 extern char armed;
 extern char out_put;
 extern uint8_t compute_dshot_flag;
+extern uint16_t commutation_interval;
 
 int interrupt = 0;
 
@@ -96,6 +97,7 @@ void DMA1_Channel1_IRQHandler(void)
 
 void COMP1_2_3_IRQHandler(void)
 {
+	if(INTERVAL_TIMER->CNT > (commutation_interval>>1)){
     interrupt++;
     if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_22)) {
         LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_22);
@@ -108,6 +110,10 @@ void COMP1_2_3_IRQHandler(void)
         interruptRoutine();
         return;
     }
+	}else{
+		LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_21);
+		LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_22);
+	}
 }
 
 void TIM6_DAC_IRQHandler(void)
@@ -128,4 +134,19 @@ void EXTI15_10_IRQHandler(void)
 {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_15);
     processDshot();
+}
+
+void DMA1_Channel3_IRQHandler(void)
+{
+    if (LL_DMA_IsActiveFlag_TC3(DMA1)) {
+        send_telemetry = 0;
+        LL_DMA_ClearFlag_GI3(DMA1);
+        LL_DMA_DisableChannel(DMA1, LL_DMA_CHANNEL_3);
+        /* Call function Transmission complete Callback */
+    } else if (LL_DMA_IsActiveFlag_TE3(DMA1)) {
+        LL_DMA_ClearFlag_GI3(DMA1);
+        LL_DMA_DisableChannel(DMA1, LL_DMA_CHANNEL_3);
+        /* Call Error function */
+        // USART_TransferError_Callback();
+    }
 }
