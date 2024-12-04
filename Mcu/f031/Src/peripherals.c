@@ -535,6 +535,42 @@ void UN_GPIO_Init(void)
     NVIC_EnableIRQ(EXTI_IRQ2_NAME);
 }
 
+#ifdef USE_RGB_LED // has 3 color led
+void LED_GPIO_init()
+{
+    LL_GPIO_InitTypeDef GPIO_InitStruct = { 0 };
+
+    /* GPIO Ports Clock Enable */
+    LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
+
+    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_0);
+    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_1);
+    LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_5);
+
+    GPIO_InitStruct.Pin = LL_GPIO_PIN_0;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = LL_GPIO_PIN_1;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    GPIO_InitStruct.Pin = LL_GPIO_PIN_5;
+    GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+    GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+    GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+    LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+#endif
+
 void reloadWatchDogCounter() { LL_IWDG_ReloadCounter(IWDG); }
 
 void disableComTimerInt() { COM_TIMER->DIER &= ~((0x1UL << (0U))); }
@@ -616,9 +652,9 @@ void enableCorePeripherals()
 
 #ifdef USE_RGB_LED
     LED_GPIO_init();
-    GPIOB->BRR = LL_GPIO_PIN_8; // turn on red
-    GPIOB->BSRR = LL_GPIO_PIN_5;
-    GPIOB->BSRR = LL_GPIO_PIN_3; //
+    GPIOA->BRR = LL_GPIO_PIN_0; // turn on red
+    GPIOA->BSRR = LL_GPIO_PIN_1;
+    GPIOA->BSRR = LL_GPIO_PIN_5; //
 #endif
 
 #ifndef BRUSHED_MODE
