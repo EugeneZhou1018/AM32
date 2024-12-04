@@ -1,9 +1,9 @@
 {
-    "OS": "windows",
-    "makefile.makePath": "tools/windows/make/bin/make.exe",
+    //"OS": "windows",
+    //"makefile.makePath": "tools/windows/make/bin/make.exe",
 
-    //"OS": "linux",
-    //"makefile.makePath": "/usr/bin/make",
+    "OS": "linux",
+    "makefile.makePath": "/usr/bin/make",
 
     "makefile.configurations": [
         {
