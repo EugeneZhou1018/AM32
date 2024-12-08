@@ -768,7 +768,7 @@ void getBemfState()
 #else
     current_state = !getCompOutputLevel(); // polarity reversed
 #endif
-    if (rising) {
+    if (!rising) {
         if (current_state) {
             bemfcounter++;
         } else {
@@ -862,7 +862,7 @@ void interruptRoutine()
     }
         for (int i = 0; i < filter_level; i++) {
 #ifdef MCU_F031
-            if (((current_GPIO_PORT->IDR & current_GPIO_PIN) == !(rising))) {
+            if (((current_GPIO_PORT->IDR & current_GPIO_PIN) == rising)) {
 #else
             if (getCompOutputLevel() == rising) {
 #endif
