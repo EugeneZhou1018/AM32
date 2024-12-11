@@ -10,6 +10,7 @@
 #include "peripherals.h"
 
 #include "ADC.h"
+#include "serial_telemetry.h"
 #include "targets.h"
 
 void initCorePeripherals(void)
@@ -27,6 +28,9 @@ void initCorePeripherals(void)
     MX_TIM17_Init();
     TEN_KHZ_Timer_Init();
     UN_TIM_Init();
+#ifdef USE_SERIAL_TELEMETRY
+    telem_UART_Init();
+#endif
 }
 
 void initAfterJump()
