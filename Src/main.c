@@ -1136,7 +1136,9 @@ void setInput()
         input = 0;
         bemf_timeout_happened = 102;
 #ifdef USE_RGB_LED
+#ifndef USE_RGB_INPUT_LED
         setIndividualRGBLed(1, 0, 0);
+#endif
 #endif
     } else {
 #ifdef FIXED_DUTY_MODE
@@ -1360,7 +1362,9 @@ void tenKhzRoutine()
                             send_LED_RGB(0, 255, 0);
 #endif
 #ifdef USE_RGB_LED
+#ifndef USE_RGB_INPUT_LED
                             setIndividualRGBLed(0,1,0);
+#endif
 #endif
                             if ((cell_count == 0) && eepromBuffer.low_voltage_cut_off == 1) {
                                 cell_count = battery_voltage / 370;
@@ -1840,7 +1844,9 @@ int main(void)
     send_LED_RGB(125, 0, 0);
 #endif
 #ifdef USE_RGB_LED
+#ifndef USE_RGB_INPUT_LED
      setIndividualRGBLed(1,0,0);
+#endif
 #endif
 
 #ifdef USE_CRSF_INPUT
@@ -2002,6 +2008,17 @@ if(zero_crosses < 5){
                 NVIC_SystemReset();
             }
         }
+
+#ifdef USE_RGB_INPUT_LED
+    if (signaltimeout > (LOOP_FREQUENCY_HZ >> 1)) {  
+        setIndividualRGBLed(1, 0, 0); // not connected  
+    } else if (dshot) {  
+        setIndividualRGBLed(0, 0, 1); // Dshot  
+    } else if (servoPwm) {  
+        setIndividualRGBLed(0, 1, 0); // PWM  
+    }  
+#endif
+
 #ifdef USE_CUSTOM_LED
         if ((input >= 47) && (input < 1947)) {
             if (ledcounter > (2000 >> forward)) {
